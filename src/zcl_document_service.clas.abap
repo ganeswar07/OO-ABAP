@@ -7,8 +7,11 @@ CLASS zcl_document_service DEFINITION
     METHODS:
 
       constructor
-        IMPORTING io_processor  TYPE REF TO zif_document_processor
-                  io_repository TYPE REF TO zif_document_repository,
+        IMPORTING
+          io_processor  TYPE REF TO zif_document_processor
+          io_repository TYPE REF TO zif_document_repository
+        RAISING
+          zcx_document_error ,
 
       run
         IMPORTING io_document      TYPE REF TO zcl_document
@@ -42,8 +45,15 @@ ENDCLASS.
 CLASS zcl_document_service IMPLEMENTATION.
 
   METHOD constructor.
+
+    IF io_processor IS NOT BOUND
+       OR io_repository IS NOT BOUND.
+      RAISE EXCEPTION TYPE zcx_document_error.
+    ENDIF.
+
     me->doc_processor = io_processor.
     me->doc_repository = io_repository.
+
   ENDMETHOD.
 
   METHOD run.

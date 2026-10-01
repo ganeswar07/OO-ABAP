@@ -4,10 +4,10 @@ CLASS zcl_document DEFINITION
 
   PUBLIC SECTION.
 
-
     TYPES:
       ty_document_type TYPE c LENGTH 2,
-      ty_status        TYPE c LENGTH 1.
+      ty_status        TYPE c LENGTH 1,
+      ty_amount        TYPE  z_de_amount.
 
     METHODS:
       constructor
@@ -17,46 +17,49 @@ CLASS zcl_document DEFINITION
           created_by    TYPE syuname
           created_on    TYPE d
           status        TYPE ty_status
-          amount        TYPE currencysap
+          amount        TYPE ty_amount
           currency      TYPE waers
-
         RAISING
           zcx_document_error,
 
       get_document_id
-        RETURNING VALUE(rv_document_id) TYPE string,
+        RETURNING
+          VALUE(rv_document_id) TYPE string,
 
       get_status
-        RETURNING VALUE(rv_status) TYPE ty_status,
+        RETURNING
+          VALUE(rv_status) TYPE ty_status,
 
       get_amount
-        RETURNING VALUE(rv_amount) TYPE currencysap,
+        RETURNING
+          VALUE(rv_amount) TYPE ty_amount ,
 
       set_status
         IMPORTING
-          iv_status TYPE ty_status,
+          iv_status TYPE ty_status
+        RAISING
+          zcx_document_error,
 
       process  ABSTRACT
-        RETURNING VALUE(rv_return) TYPE string .
-
-
+        RETURNING
+          VALUE(rv_return) TYPE string .
 
   PROTECTED SECTION.
 
     DATA:
       document_type TYPE ty_document_type,
-      amount        TYPE currencysap.
+      amount        TYPE ty_amount.
 
     METHODS validate  ABSTRACT
       RAISING
         zcx_document_error .
   PRIVATE       SECTION.
     DATA:
-      document_id   TYPE string,
-      status     TYPE ty_status,
-      currency   TYPE waers,
-      created_by TYPE syuname,
-      created_on TYPE d.
+      document_id TYPE string,
+      status      TYPE ty_status,
+      currency    TYPE waers,
+      created_by  TYPE syuname,
+      created_on  TYPE d.
 
 
 ENDCLASS.
@@ -102,7 +105,7 @@ CLASS zcl_document IMPLEMENTATION.
     me->created_by = created_by.
     me->created_on = created_on.
     me->status = status.
-    me->amount = amount.
+    me->amount =  amount .
     me->currency = currency.
 
   ENDMETHOD.
@@ -124,7 +127,13 @@ CLASS zcl_document IMPLEMENTATION.
 
   METHOD set_status.
 
-    me->status = iv_status.
+    CASE iv_status.
+      WHEN 'N' OR 'P' OR 'C'.
+        me->status = iv_status.
+
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_document_error.
+    ENDCASE.
 
   ENDMETHOD.
 

@@ -13,7 +13,7 @@ CLASS zcl_so_document DEFINITION
           created_by    TYPE syuname
           created_on    TYPE d
           status        TYPE ty_status
-          amount        TYPE currencysap
+          amount        TYPE ty_amount
           currency      TYPE waers
         RAISING
           zcx_document_error,
