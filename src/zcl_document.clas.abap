@@ -89,7 +89,7 @@ CLASS zcl_document IMPLEMENTATION.
     ENDCASE.
 
     CASE status.
-      WHEN 'N' OR 'P' OR 'C'.
+      WHEN 'N' OR 'P' OR 'C' OR 'R'.
 
       WHEN OTHERS.
         RAISE EXCEPTION TYPE zcx_document_error.
@@ -128,7 +128,7 @@ CLASS zcl_document IMPLEMENTATION.
   METHOD set_status.
 
     CASE iv_status.
-      WHEN 'N' OR 'P' OR 'C'.
+      WHEN 'N' OR 'P' OR 'C' OR 'R'.
         me->status = iv_status.
 
       WHEN OTHERS.

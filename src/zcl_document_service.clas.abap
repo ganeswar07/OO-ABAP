@@ -15,7 +15,10 @@ CLASS zcl_document_service DEFINITION
 
       run
         IMPORTING io_document      TYPE REF TO zcl_document
-        RETURNING VALUE(rv_return) TYPE String,
+        RETURNING VALUE(rv_return) TYPE String
+        RAISING
+                  zcx_document_error ,
+
 
       save_document
         IMPORTING io_document TYPE REF TO zcl_document

@@ -17,185 +17,179 @@ CLASS zcl_main IMPLEMENTATION.
 
   METHOD if_oo_adt_classrun~main.
 
-    DATA status TYPE zcl_document=>ty_status.
-    DATA(lo_standard) =
-      NEW zcl_standard_approval_strategy( ).
+    DATA:
+      lo_processor        TYPE REF TO zif_document_processor,
+      lo_repository       TYPE REF TO zif_document_repository,
+      lo_strategy         TYPE REF TO zif_approval_strategy,
+      lo_document         TYPE REF TO zcl_document,
+      lo_document_service TYPE REF TO zcl_document_service,
+      lo_approval_service TYPE REF TO zcl_approval_service.
 
-    DATA(lo_high_value) =
+    "------------------------------------------------------------
+    " 1. Create concrete dependencies
+    "------------------------------------------------------------
+
+    lo_processor =
+      NEW zcl_logging_document_processor( ).
+
+    lo_repository =
+      NEW zcl_document_repository( ).
+
+    lo_strategy =
       NEW zcl_high_val_approval_strategy( ).
 
+
+    "------------------------------------------------------------
+    " 2. Inject dependencies into services
+    "------------------------------------------------------------
+
     TRY.
-        DATA(lo_standard_service) =
+
+        lo_document_service =
+          NEW zcl_document_service(
+            io_processor  = lo_processor
+            io_repository = lo_repository ).
+
+        lo_approval_service =
           NEW zcl_approval_service(
-            io_approval = lo_standard
-          ).
+            io_approval = lo_strategy ).
 
       CATCH zcx_document_error INTO DATA(lx_error).
-        out->write( |Error while creating standand Service  : { lx_error->get_text(  ) }| ).
-    ENDTRY.
 
-    TRY.
-        DATA(lo_high_value_service) =
-          NEW zcl_approval_service(
-            io_approval = lo_high_value
-          ).
-      CATCH zcx_document_error INTO lx_error.
-        out->write( |Error while creating value High Service  : { lx_error->get_text(  ) }| ).
+        out->write(
+          |Error while creating services: { lx_error->get_text( ) }| ).
+
+        RETURN.
+
     ENDTRY.
 
 
+    "------------------------------------------------------------
+    " 3. Prepare document request
+    "------------------------------------------------------------
+
+    DATA(ls_document_request) =
+      VALUE zcl_document_factory=>ty_document(
+        document_id   = '900101'
+        document_type = 'PR'
+        status        = 'N'
+        amount        = 75000
+        currency      = 'INR'
+        created_by    = sy-uname
+        created_on    = cl_abap_context_info=>get_system_date( )
+      ).
+
+
+    "------------------------------------------------------------
+    " 4. Create document through Factory
+    "------------------------------------------------------------
+
     TRY.
-        " TC01: Standard approves 30,000
-        DATA(lo_doc1) =
+
+        lo_document =
           zcl_document_factory=>create_document(
-            VALUE zcl_document_factory=>ty_document(
-              document_id   = '900001'
-              document_type = 'PR'
-              created_by    = sy-uname
-              created_on    = cl_abap_context_info=>get_system_date( )
-              status        = 'N'
-              amount        = 30000
-              currency      = 'INR'
-            )
-          ).
+            ls_document_request ).
+
+        out->write(
+          |Document created: { lo_document->get_document_id( ) }| ).
 
       CATCH zcx_document_error INTO lx_error.
-        out->write( |Error while creating document : 900001  : { lx_error->get_text(  ) }| ).
+
+        out->write(
+          |Document creation failed: { lx_error->get_text( ) }| ).
+
+        RETURN.
+
     ENDTRY.
 
 
+    "------------------------------------------------------------
+    " 5. Process document through Document Service
+    "------------------------------------------------------------
+
     TRY.
-        IF lo_standard_service->approve( lo_doc1 )
-        = zif_approval_strategy=>c_approve.
-          out->write( 'TC01 PASS: Standard approved 30000' ).
-        ELSE.
-          out->write( 'TC01 FAIL' ).
-        ENDIF.
+
+        DATA(lv_process_result) =
+          lo_document_service->run(
+            lo_document ).
+
+        out->write( lv_process_result ).
+
+        lo_document->set_status( 'P' ).
+
+        out->write(
+          |Document status: { lo_document->get_status( ) }| ).
+
       CATCH zcx_document_error INTO lx_error.
 
-        out->write( |Error while approving  : { lx_error->get_text(  ) }| ).
+        out->write(
+          |Document processing failed: { lx_error->get_text( ) }| ).
+
+        RETURN.
+
     ENDTRY.
 
 
-    TRY.
-        " TC02: Standard rejects 75,000
-        DATA(lo_doc2) =
-          zcl_document_factory=>create_document(
-            VALUE zcl_document_factory=>ty_document(
-              document_id   = '900002'
-              document_type = 'PR'
-              created_by    = sy-uname
-              created_on    = cl_abap_context_info=>get_system_date( )
-              status        = 'N'
-              amount        = 75000
-              currency      = 'INR'
-            )
-          ).
-
-      CATCH zcx_document_error INTO lx_error.
-        out->write( |Error while creating document : 900002 : { lx_error->get_text(  ) }| ).
-    ENDTRY.
-
+    "------------------------------------------------------------
+    " 6. Approve through Approval Service
+    "------------------------------------------------------------
 
     TRY.
 
-        IF lo_standard_service->approve( lo_doc2 )
-            = zif_approval_strategy=>c_reject.
-          out->write( 'TC02 PASS: Standard rejected 75000' ).
+        IF lo_approval_service->approve(
+             lo_document ) = zif_approval_strategy=>c_approve.
+
+          lo_document->set_status( 'C' ).
+
+          out->write(
+            |Document approved| ).
+
         ELSE.
-          out->write( 'TC02 FAIL' ).
-        ENDIF.
 
+          lo_document->set_status( 'R' ).
 
+          out->write(
+            |Document rejected| ).
 
-
-        " TC03: High-value approves 75,000
-        IF lo_high_value_service->approve( lo_doc2 )
-            = zif_approval_strategy=>c_approve.
-          out->write( 'TC03 PASS: High-value approved 75000' ).
-        ELSE.
-          out->write( 'TC03 FAIL' ).
         ENDIF.
 
-      CATCH zcx_document_error INTO lx_error.
-
-        out->write( |Error while approving  : { lx_error->get_text(  ) }| ).
-    ENDTRY.
-
-    TRY.
-        " TC04: High-value rejects 120,000
-        DATA(lo_doc4) =
-          zcl_document_factory=>create_document(
-            VALUE zcl_document_factory=>ty_document(
-              document_id   = '900004'
-              document_type = 'SO'
-              created_by    = sy-uname
-              created_on    = cl_abap_context_info=>get_system_date( )
-              status        = 'N'
-              amount        =  120000
-              currency      = 'INR'
-            )
-          ).
-
+        out->write(
+          |Document status: { lo_document->get_status( ) }| ).
 
       CATCH zcx_document_error INTO lx_error.
-        out->write( |Error while creating document : 900004 : { lx_error->get_text(  ) }| ).
+
+        out->write(
+          |Approval failed: { lx_error->get_text( ) }| ).
+
+        RETURN.
+
     ENDTRY.
 
 
+    "------------------------------------------------------------
+    " 7. Save final document through Repository
+    "------------------------------------------------------------
 
     TRY.
-        IF lo_high_value_service->approve( lo_doc4 )
-            = zif_approval_strategy=>c_reject.
-          out->write( 'TC04 PASS: High-value rejected 120000' ).
-        ELSE.
-          out->write( |TC04 FAIL : { lo_doc4->get_amount( ) } | ).
-        ENDIF.
 
+        lo_document_service->save_document(
+          lo_document ).
+
+        out->write(
+          |Document saved successfully in repository| ).
 
       CATCH zcx_document_error INTO lx_error.
 
-        out->write( |Error while approving  : { lx_error->get_text(  ) }| ).
-    ENDTRY.
+        out->write(
+          |Repository save failed: { lx_error->get_text( ) }| ).
 
+        RETURN.
 
-    TRY.
-        " TC05: Both approve exactly 50,000
-        DATA(lo_doc5) =
-          zcl_document_factory=>create_document(
-            VALUE zcl_document_factory=>ty_document(
-              document_id   = '900005'
-              document_type = 'PR'
-              created_by    = sy-uname
-              created_on    = cl_abap_context_info=>get_system_date( )
-              status        = 'N'
-              amount        = 50000
-              currency      = 'INR'
-            )
-          ).
-
-      CATCH zcx_document_error INTO lx_error.
-        out->write( |Error while creating document : 900005 : { lx_error->get_text(  ) }| ).
-    ENDTRY.
-
-    TRY.
-        IF lo_standard_service->approve( lo_doc5 )
-            = zif_approval_strategy=>c_approve
-           AND
-           lo_high_value_service->approve( lo_doc5 )
-            = zif_approval_strategy=>c_approve.
-          out->write( 'TC05 PASS: Both approved 50000' ).
-        ELSE.
-          out->write( 'TC05 FAIL' ).
-        ENDIF.
-
-      CATCH zcx_document_error INTO lx_error.
-
-        out->write( |Error while approving  : { lx_error->get_text(  ) }| ).
     ENDTRY.
 
 
   ENDMETHOD.
+
 ENDCLASS.
 
 
